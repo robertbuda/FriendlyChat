@@ -16,6 +16,7 @@
 package com.google.firebase.udacity.friendlychat;
 
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.provider.ContactsContract;
 import android.support.annotation.NonNull;
@@ -35,6 +36,8 @@ import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import com.firebase.ui.auth.AuthUI;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.database.ChildEventListener;
@@ -42,7 +45,12 @@ import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.storage.FileDownloadTask;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
+import com.google.firebase.storage.UploadTask;
 
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -75,6 +83,8 @@ public class MainActivity extends AppCompatActivity {
     private ChildEventListener childEventListener;
     private FirebaseAuth mFirebaseAuth;
     private FirebaseAuth.AuthStateListener mAuthStateListener;
+    private FirebaseStorage mFirebaseStorage;
+    private StorageReference mChatPhotosStorageReference;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,8 +95,10 @@ public class MainActivity extends AppCompatActivity {
 
         mFirebaseDatabase = FirebaseDatabase.getInstance();
         mFirebaseAuth = FirebaseAuth.getInstance();
+        mFirebaseStorage = FirebaseStorage.getInstance();
 
         mMessagesDatabaseReference = mFirebaseDatabase.getReference().child("messages");
+        mChatPhotosStorageReference = mFirebaseStorage.getReference().child("chat_photos");
 
         // Initialize references to views
         mProgressBar = (ProgressBar) findViewById(R.id.progressBar);
@@ -265,8 +277,25 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(MainActivity.this,"Signed In Cancelled",Toast.LENGTH_SHORT).show();
                 finish();
             }
+        } else if (requestCode == RC_PHOTO_PICKER && resultCode == RESULT_OK) {
+            Uri selectedImageUri = data.getData();
+            // get a reference
+            StorageReference photoRef = mChatPhotosStorageReference.child(selectedImageUri.getLastPathSegment());
+            // upload file to storage
+            photoRef.putFile(selectedImageUri).addOnSuccessListener(this, new OnSuccessListener<UploadTask.TaskSnapshot>() {
+                @Override
+                public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+
+                    taskSnapshot.getStorage().getDownloadUrl().addOnSuccessListener(new OnSuccessListener<Uri>() {
+                        @Override
+                        public void onSuccess(Uri uri) {
+                            FriendlyMessage friendlyMessage = new FriendlyMessage(null,mUsername,uri.toString());
+                            mMessagesDatabaseReference.push().setValue(friendlyMessage);
+                        }
+                    });
+                }
+            });
         }
     }
-
 
 }
